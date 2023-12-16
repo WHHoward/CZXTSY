@@ -248,44 +248,14 @@ int do_fork( process* parent)
         child->mapped_info[child->total_mapped_region].seg_type = CODE_SEGMENT;
         child->total_mapped_region++;
         break;
-      case SYSTEM_SEGMENT:
-        // TODO (lab3_1): implment the mapping of child system segment to parent's
-        // system segment.
-        // hint: the virtual address mapping of system segment is tracked in mapped_info
-        // page of parent's process structure. use the information in mapped_info to
-        // retrieve the virtual to physical mapping of system segment.
-        // after having the mapping information, just map the corresponding virtual
-        // address region of child to the physical pages that actually store the system
-        // segment of parent process.
-        // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
-//        panic( "You need to implement the system segment mapping of child in lab3_1.\n" );
-        user_vm_map((pagetable_t)child->pagetable, parent->mapped_info[i].va,
-          parent->mapped_info[i].npages * PGSIZE,
-          lookup_pa(parent->pagetable, parent->mapped_info[i].va),
-          prot_to_type(PROT_READ | PROT_EXEC, 1));
-        // after mapping, register the vm region (do not delete codes below!)
-        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
-        child->mapped_info[child->total_mapped_region].npages =
-          parent->mapped_info[i].npages;
-        child->mapped_info[child->total_mapped_region].seg_type = SYSTEM_SEGMENT;
-        child->total_mapped_region++;
-        break;
       case DATA_SEGMENT:
       {
-        // TODO (lab3_1): implment the mapping of child data segment to parent's
-        // data segment.
-        // hint: the virtual address mapping of data segment is tracked in mapped_info
-        // page of parent's process structure. use the information in mapped_info to
-        // retrieve the virtual to physical mapping of data segment.
-        // after having the mapping information, just map the corresponding virtual
-        // address region of child to the physical pages that actually store the data
-        // segment of parent process.
-        // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
-//        panic( "You need to implement the data segment mapping of child in lab3_1.\n" );
-        user_vm_map((pagetable_t)child->pagetable, parent->mapped_info[i].va,
-          parent->mapped_info[i].npages * PGSIZE,
-          lookup_pa(parent->pagetable, parent->mapped_info[i].va),
-          prot_to_type(PROT_READ | PROT_WRITE, 1));
+        for( int j=0; j<parent->mapped_info[i].npages; j++ ){
+            uint64 addr = lookup_pa(parent->pagetable, parent->mapped_info[i].va+j*PGSIZE);
+            char *newaddr = alloc_page(); memcpy(newaddr, (void *)addr, PGSIZE);
+            map_pages(child->pagetable, parent->mapped_info[i].va+j*PGSIZE, PGSIZE,
+                    (uint64)newaddr, prot_to_type(PROT_WRITE | PROT_READ, 1));
+        }
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
         child->mapped_info[child->total_mapped_region].npages =
@@ -294,9 +264,6 @@ int do_fork( process* parent)
         child->total_mapped_region++;
         break;
       }
-      default:
-        panic( "unknown segment type.\n" );
-
     }
   }
 
@@ -307,3 +274,73 @@ int do_fork( process* parent)
 
   return child->pid;
 }
+
+int do_wait(uint64 pid)
+{
+  int flag = 0;
+  if(pid == -1)
+  {
+    for(int i = 0; i < NPROC; i++)
+    {
+      if(procs[i].parent == current)
+      {
+        flag = 1;
+        if(procs[i].status == ZOMBIE)
+        {
+          free_process(&procs[i]);
+          return procs[i].pid;
+        }
+      }
+    }
+      if(flag == 0)
+      {
+        sprint("no child process\n");
+        return -1;
+      }
+      else
+      {
+        //sprint("child process is not zombie\n");
+        //return -1;
+        insert_to_blocked_queue(current);
+        schedule();
+        return 0;
+      }
+  }
+  else if(pid >= 0)
+  {
+    for(int i = 0; i < NPROC; i++)
+    {
+      if(procs[i].pid == pid)
+      {
+        
+        if(procs[i].parent == current)
+        {
+          flag = 1;
+          if(procs[i].status == ZOMBIE)
+          {
+            free_process(&procs[i]);
+            return procs[i].pid;
+          }
+        }
+        else
+        {
+          sprint("pid is not current's child\n");
+          return -1;
+        }
+      }
+    }
+    if(flag == 0)
+    {
+      sprint("pid is not exist\n");
+      return -1;
+    }
+      else
+      {
+        insert_to_blocked_queue(current);
+        schedule();
+        return 0;
+      }
+  }
+  return -1;
+}
+

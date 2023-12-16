@@ -8,5 +8,6 @@
 
 void insert_to_ready_queue( process* proc );
 void schedule();
-
+void insert_to_blocked_queue( process* proc );
+void insert_to_ready_queue_2(process* proc);
 #endif
