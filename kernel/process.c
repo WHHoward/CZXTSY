@@ -175,6 +175,7 @@ int free_process( process* proc ) {
 // segments (code, system) of the parent to child. the stack segment remains unchanged
 // for the child.
 //
+//补充do_fork函数，实验3_1实现了代码段的复制，你需要继续实现数据段的复制并保证fork后父子进程的数据段相互独立。
 int do_fork( process* parent)
 {
   sprint( "will fork a child from parent %d.\n", parent->pid );
@@ -185,9 +186,11 @@ int do_fork( process* parent)
     // map its code segment.
     switch( parent->mapped_info[i].seg_type ){
       case CONTEXT_SEGMENT:
+
         *child->trapframe = *parent->trapframe;
         break;
       case STACK_SEGMENT:
+
         memcpy( (void*)lookup_pa(child->pagetable, child->mapped_info[STACK_SEGMENT].va),
           (void*)lookup_pa(parent->pagetable, parent->mapped_info[i].va), PGSIZE );
         break;
@@ -245,6 +248,55 @@ int do_fork( process* parent)
         child->mapped_info[child->total_mapped_region].seg_type = CODE_SEGMENT;
         child->total_mapped_region++;
         break;
+      case SYSTEM_SEGMENT:
+        // TODO (lab3_1): implment the mapping of child system segment to parent's
+        // system segment.
+        // hint: the virtual address mapping of system segment is tracked in mapped_info
+        // page of parent's process structure. use the information in mapped_info to
+        // retrieve the virtual to physical mapping of system segment.
+        // after having the mapping information, just map the corresponding virtual
+        // address region of child to the physical pages that actually store the system
+        // segment of parent process.
+        // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
+//        panic( "You need to implement the system segment mapping of child in lab3_1.\n" );
+        user_vm_map((pagetable_t)child->pagetable, parent->mapped_info[i].va,
+          parent->mapped_info[i].npages * PGSIZE,
+          lookup_pa(parent->pagetable, parent->mapped_info[i].va),
+          prot_to_type(PROT_READ | PROT_EXEC, 1));
+        // after mapping, register the vm region (do not delete codes below!)
+        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
+        child->mapped_info[child->total_mapped_region].npages =
+          parent->mapped_info[i].npages;
+        child->mapped_info[child->total_mapped_region].seg_type = SYSTEM_SEGMENT;
+        child->total_mapped_region++;
+        break;
+      case DATA_SEGMENT:
+      {
+        // TODO (lab3_1): implment the mapping of child data segment to parent's
+        // data segment.
+        // hint: the virtual address mapping of data segment is tracked in mapped_info
+        // page of parent's process structure. use the information in mapped_info to
+        // retrieve the virtual to physical mapping of data segment.
+        // after having the mapping information, just map the corresponding virtual
+        // address region of child to the physical pages that actually store the data
+        // segment of parent process.
+        // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
+//        panic( "You need to implement the data segment mapping of child in lab3_1.\n" );
+        user_vm_map((pagetable_t)child->pagetable, parent->mapped_info[i].va,
+          parent->mapped_info[i].npages * PGSIZE,
+          lookup_pa(parent->pagetable, parent->mapped_info[i].va),
+          prot_to_type(PROT_READ | PROT_WRITE, 1));
+        // after mapping, register the vm region (do not delete codes below!)
+        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
+        child->mapped_info[child->total_mapped_region].npages =
+          parent->mapped_info[i].npages;
+        child->mapped_info[child->total_mapped_region].seg_type = DATA_SEGMENT;
+        child->total_mapped_region++;
+        break;
+      }
+      default:
+        panic( "unknown segment type.\n" );
+
     }
   }
 

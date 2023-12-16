@@ -95,11 +95,33 @@ ssize_t sys_user_yield() {
   schedule();
   return 0;
 }
+ssize_t sys_user_wait(uint64 pid) {
+//当pid为-1时，父进程等待任意一个子进程退出即返回子进程的pid；
+//当pid大于0时，父进程等待进程号为pid的子进程退出即返回子进程的pid；
+//如果pid不合法或pid大于0且pid对应的进程不是当前进程的子进程，返回-1。
+  if(pid == -1){
+    for(int i = 0; i < current->; i++){
+      if(current->child[i] != NULL){
+        while(current->child[i]->status != ZOMBIE){
+          sys_user_yield();
+        }
+        return current->child[i]->pid;
+      }
+    }
+  }
+  else if(pid > 0){
+    for(int i = 0; i < MAX_PROCESS; i++){
+      if(current->child[i] != NULL && current->child[i]->pid == pid){
+        while(current->child[i]->status != ZOMBIE){
+          sys_user_yield();
+        }
+        return current->child[i]->pid;
+      }
+    }
+  }
+  return -1;
+}
 
-//
-// [a0]: the syscall number; [a1] ... [a7]: arguments to the syscalls.
-// returns the code of success, (e.g., 0 means success, fail for otherwise)
-//
 long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, long a7) {
   switch (a0) {
     case SYS_user_print:
@@ -115,6 +137,8 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_fork();
     case SYS_user_yield:
       return sys_user_yield();
+    case SYS_user_wait:
+      return sys_user_wait(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }
