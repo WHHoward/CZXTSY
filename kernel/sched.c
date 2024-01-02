@@ -97,7 +97,7 @@ void schedule() {
       process *q;
       p = blocked_queue_head;
       q = p->queue_next;
-      insert_to_ready_queue_2(p);
+      insert_to_ready_queue(p);
       p = q;
       blocked_queue_head = q;
       schedule();
