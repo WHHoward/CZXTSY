@@ -3,7 +3,6 @@
  */
 
 #include "proc_file.h"
-
 #include "hostfs.h"
 #include "pmm.h"
 #include "process.h"
@@ -14,7 +13,8 @@
 #include "spike_interface/spike_utils.h"
 #include "util/functions.h"
 #include "util/string.h"
-
+#include "vmm.h"
+#include "string.h"
 //
 // initialize file system
 //
@@ -82,7 +82,6 @@ struct file *get_opened_file(int fd) {
 int do_open(char *pathname, int flags) {
   struct file *opened_file = NULL;
   if ((opened_file = vfs_open(pathname, flags)) == NULL) return -1;
-
   int fd = 0;
   if (current->pfiles->nfiles >= MAX_FILES) {
     panic("do_open: no file entry for current process!\n");
@@ -221,3 +220,79 @@ int do_link(char *oldpath, char *newpath) {
 int do_unlink(char *path) {
   return vfs_unlink(path);
 }
+
+
+//
+// read the current working directory
+//
+int do_read_cwd(char *path) {
+  struct dentry *cwd = current->pfiles->cwd;
+  int len = strlen(cwd->name);
+  char *temp = (char *)alloc_page();
+  memset(temp, 0, MAX_PATH_LEN);
+  if(cwd->parent->name) strcpy(temp, cwd->parent->name);
+  strcat(temp, cwd->name);
+  strcpy(path, temp);   //将path输出
+  return len;
+}
+
+//
+// change the current working directory
+//
+//在这里需要对于相对路径进行处理,相对路径有多种情况比如./或../
+//相对路径：从路径字符串形式的角度来看，相对路径的起始处总是为以下两种特殊的目录之一：”.“，”..“。其中”.“代指进程的当前工作目录，“..”代指进程当前工作目录的父目录。例如，“./file”的含义为：位于进程当前工作目录下的file文件；“../dir/file”的含义为：当前进程工作目录父目录下的dir目录下的file文件。
+//要切换到相对路径的对应文件夹
+//不用考虑绝对路径
+int do_change_cwd(char *path) {
+  char miss_name[MAX_PATH_LEN];
+  struct dentry *new_cwd = NULL;
+  if(path[0] == '/')
+  {
+    new_cwd = lookup_final_dentry(path, &vfs_root_dentry, miss_name);
+  }
+  else
+  {
+    if (path[0] == '.' && path[1] != '.') 
+    {
+      new_cwd = lookup_final_dentry(path+2, &current->pfiles->cwd, miss_name);
+    } 
+    else 
+      if (path[1] == '.') 
+      {
+        new_cwd = lookup_final_dentry(path+3, &current->pfiles->cwd->parent, miss_name);
+      }
+      else
+      {
+        new_cwd = lookup_final_dentry(path, &current->pfiles->cwd, miss_name);
+      }
+  }
+  if (new_cwd == NULL) return -1;
+  current->pfiles->cwd = new_cwd;
+  return 0;
+}
+
+void change_to_absolute_path(char * path, char temp[30])
+{
+
+  memset(temp, 0, MAX_PATH_LEN);
+  if(path[0] == '/')
+  {
+    strcpy(temp, path);
+  }
+  else
+  {
+    if(path[1] != '.')
+      strcpy(temp, current->pfiles->cwd->name);
+    if(path[1] == '.')
+    {
+      strcpy(temp, current->pfiles->cwd->parent->name);
+    }
+    if(temp[strlen(temp)-1] != '/')
+      strcat(temp, "/");
+    if(path[1] != '.')
+      strcat(temp, path + 2);
+    else
+      strcat(temp, path+3);
+  }
+}
+

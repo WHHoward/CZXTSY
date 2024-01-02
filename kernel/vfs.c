@@ -9,7 +9,6 @@
 #include "util/string.h"
 #include "util/types.h"
 #include "util/hash_table.h"
-
 struct dentry *vfs_root_dentry;               // system root direntry
 struct super_block *vfs_sb_list[MAX_MOUNTS];  // system superblock list
 struct device *vfs_dev_list[MAX_VFS_DEV];     // system device list in vfs layer
@@ -111,10 +110,8 @@ struct super_block *vfs_mount(const char *dev_name, int mnt_type) {
 struct file *vfs_open(const char *path, int flags) {
   struct dentry *parent = vfs_root_dentry; // we start the path lookup from root.
   char miss_name[MAX_PATH_LEN];
-
   // path lookup.
   struct dentry *file_dentry = lookup_final_dentry(path, &parent, miss_name);
-
   // file does not exist
   if (!file_dentry) {
     int creatable = flags & O_CREAT;
